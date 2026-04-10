@@ -40,8 +40,13 @@ settings = Settings()
 # Application constants (not read from environment; keep next to settings for one import surface)
 COOKIE_AUTH = "auth"
 COOKIE_AUTH_RESET = "auth_reset"
+COOKIE_AUTH_REFRESH = "refresh"
 
-AUTH_COOKIE_MAX_AGE = 259200
+ACCESS_TOKEN_TTL_SECONDS = 15 * 60
+REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
+
+AUTH_COOKIE_MAX_AGE = ACCESS_TOKEN_TTL_SECONDS
+REFRESH_COOKIE_MAX_AGE = REFRESH_TOKEN_TTL_SECONDS
 RESET_COOKIE_MAX_AGE = 900
 RESET_CODE_REDIS_TTL = 600
 

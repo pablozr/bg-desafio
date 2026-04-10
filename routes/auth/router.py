@@ -1,11 +1,14 @@
 import asyncpg
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from starlette.requests import Request
 
 from core.config.config import (
     AUTH_COOKIE_MAX_AGE,
     COOKIE_AUTH,
+    COOKIE_AUTH_REFRESH,
     COOKIE_AUTH_RESET,
+    REFRESH_COOKIE_MAX_AGE,
     RESET_COOKIE_MAX_AGE,
 )
 from core.postgresql.postgresql import postgresql
@@ -31,9 +34,11 @@ router = APIRouter()
 
 @router.post("/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
 async def login(
-    data: LoginRequestModel, conn: asyncpg.Connection = Depends(postgresql.get_db)
+    data: LoginRequestModel,
+    conn: asyncpg.Connection = Depends(postgresql.get_db),
+    redis_client=Depends(redis_cache.get_redis),
 ):
-    response = await auth_service.login(conn, data)
+    response = await auth_service.login(conn, redis_client, data)
 
     if not response["status"]:
         return JSONResponse(status_code=400, content={"detail": response["message"]})
@@ -57,33 +62,34 @@ async def login(
     )
 
     resp.set_cookie(
-        key="refresh_token",
+        key=COOKIE_AUTH_REFRESH,
         value=refresh_token,
         httponly=True,
         secure=True,
         samesite="lax",
         path="/",
-        max_age=AUTH_COOKIE_MAX_AGE * 2,
+        max_age=REFRESH_COOKIE_MAX_AGE,
     )
 
     return resp
 
 
-@router.post("/google-login", dependencies=LOGIN_RATE_LIMIT_DEPS)
-async def google_login(
-    data: LoginGoogleRequestModel,
-    conn: asyncpg.Connection = Depends(postgresql.get_db),
+@router.post("/refresh", dependencies=[Depends(security.validate_token_refresh)])
+async def refresh_token(
+    request: Request,
+    redis_client = Depends(redis_cache.get_redis),
 ):
-    response = await auth_service.google_login(conn, data)
+
+    response = await auth_service.refresh_tokens(request.state.token, redis_client)
 
     if not response["status"]:
-        return JSONResponse(status_code=400, content={"detail": response["message"]})
+        return JSONResponse(status_code=400, content={"detail": response["message"], "data": {}})
 
     token = response["data"].pop("access_token")
-    resp = JSONResponse(
-        status_code=200,
-        content={"message": response["message"], "data": response["data"]},
-    )
+    refresh_token = response["data"].pop("refresh_token")
+
+    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
+
     resp.set_cookie(
         key=COOKIE_AUTH,
         value=token,
@@ -94,17 +100,37 @@ async def google_login(
         max_age=AUTH_COOKIE_MAX_AGE,
     )
 
+    resp.set_cookie(
+        key=COOKIE_AUTH_REFRESH,
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/",
+        max_age=REFRESH_COOKIE_MAX_AGE,
+    )
+
     return resp
 
 
 @router.post("/logout")
-async def logout():
+async def logout(
+    request: Request,
+    redis_client=Depends(redis_cache.get_redis),
+):
+    await auth_service.logout(
+        request.cookies.get(COOKIE_AUTH),
+        request.cookies.get(COOKIE_AUTH_REFRESH),
+        redis_client,
+    )
+
     resp = JSONResponse(
         status_code=200,
         content={"message": "Logged out", "data": {}},
     )
     resp.delete_cookie(key=COOKIE_AUTH, path="/", samesite="lax")
     resp.delete_cookie(key=COOKIE_AUTH_RESET, path="/", samesite="lax")
+    resp.delete_cookie(key=COOKIE_AUTH_REFRESH, path="/", samesite="lax")
 
     return resp
 

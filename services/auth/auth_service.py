@@ -6,20 +6,20 @@ import asyncpg
 import redis
 
 from core.config.config import (
-    AUTH_COOKIE_MAX_AGE,
+    ACCESS_TOKEN_TTL_SECONDS,
     EMAIL_QUEUE,
+    REFRESH_TOKEN_TTL_SECONDS,
     RESET_CODE_REDIS_TTL,
     RESET_COOKIE_MAX_AGE,
     settings,
 )
 from core.logger.logger import logger
 from core.security.hashing import hash_password, verify_password
-from core.security.jwt_payloads import auth_jwt_payload_from_row, reset_jwt_payload
-from core.security.security import create_token, verify_google_token
+from core.security.jwt_payloads import reset_jwt_payload
+from core.security.security import create_token, decode_access_token
 from functions.utils.utils import generate_temp_code
 from schemas.auth import (
     ForgetPasswordRequestModel,
-    LoginGoogleRequestModel,
     LoginRequestModel,
     UpdatePasswordRequest,
     ValidateCodeRequest,
@@ -55,7 +55,7 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: Login
                 "sessionId": session_id,
                 "type": "auth"
             },
-            expires_delta=timedelta(minutes=15),
+            expires_delta=timedelta(seconds=ACCESS_TOKEN_TTL_SECONDS),
         )
 
         refresh_token = create_token(
@@ -68,18 +68,17 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: Login
                 "jti": refresh_jti,
                 "type": "refresh"
             },
-            expires_delta=timedelta(days=7),
+            expires_delta=timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS),
         )
 
         session_data = {
             "userId": row["id"],
             "refreshJti": refresh_jti,
-            "revoked": False,
         }
 
         await cache_service.set_by_key(
             f"session:{session_id}",
-            7 * 24 * 60 * 60,
+            REFRESH_TOKEN_TTL_SECONDS,
             session_data,
             redis_client,
         )
@@ -100,28 +99,101 @@ async def refresh_tokens(
         refresh_token: str, redis_client: redis.Redis
 ) -> dict:
 
-    if not refresh_token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
 
-    if refresh_token.startswith("Bearer "):
-        refresh_token = refresh_token[7:]
+        if not refresh_token:
+            raise ValueError("Refresh token is required")
 
-    payload = decode_access_token(refresh_token)
+        if refresh_token.startswith("Bearer "):
+            refresh_token = refresh_token[7:]
 
-    if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Invalid token type")
+        payload = decode_access_token(refresh_token)
 
-    if not payload.get("userId") or not payload.get("sessionId"):
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+        if payload.get("type") != "refresh":
+            raise ValueError("Invalid token type")
 
-    session = await cache_service.get_by_key(f"{"session"}:{payload["sessionId"]}", redis_client)
-    if not session or session["revoked"]:
-        raise HTTPException(status_code=401, detail="Session has been revoked")
+        if not payload.get("userId") or not payload.get("sessionId"):
+            raise ValueError("Invalid token")
 
-    if session["refreshJti"] != payload.get("jti"):
-        raise HTTPException(status_code=401, detail="Invalid token")
+        session = await cache_service.get_by_key(
+            f"session:{payload['sessionId']}", redis_client
+        )
+        if not session:
+            raise ValueError("Invalid token")
 
-    new_access_token = create_token(
+        if session["refreshJti"] != payload.get("jti"):
+            raise ValueError("Invalid token")
+
+        new_access_token = create_token(
+            {
+                "userId": payload["userId"],
+                "email": payload["email"],
+                "fullname": payload["fullname"],
+                "role": payload["role"],
+                "sessionId": payload["sessionId"],
+                "type": "auth"
+            },
+            expires_delta=timedelta(seconds=ACCESS_TOKEN_TTL_SECONDS),
+        )
+
+        new_jti = secrets.token_hex(16)
+
+        new_refresh_token = create_token(
+            {
+                "userId": payload["userId"],
+                "email": payload["email"],
+                "fullname": payload["fullname"],
+                "role": payload["role"],
+                "sessionId": payload["sessionId"],
+                "jti": new_jti,
+                "type": "refresh"
+            },
+            expires_delta=timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS),
+        )
+
+        session["refreshJti"] = new_jti
+
+        await cache_service.set_by_key(
+            f"session:{payload['sessionId']}",
+            REFRESH_TOKEN_TTL_SECONDS,
+            session,
+            redis_client,
+        )
+
+        return {"status": True, "message": "Tokens refreshed", "data": {"access_token": new_access_token, "refresh_token": new_refresh_token}}
+    except ValueError as e:
+        logger.error(f"Token refresh error: {e}")
+        return {"status": False, "message": str(e), "data": {}}
+    except Exception as e:
+        logger.exception(e)
+        return {"status": False, "message": "Internal server error", "data": {}}
+
+
+async def logout(
+    access_token: str | None, refresh_token: str | None, redis_client: redis.Redis
+) -> dict:
+    for token in (refresh_token, access_token):
+        if not token:
+            raise ValueError("Token is required")
+
+        try:
+            if token.startswith("Bearer "):
+                token = token[7:]
+
+            payload = decode_access_token(token)
+            session_id = payload.get("sessionId")
+
+            if not session_id:
+                raise ValueError("Invalid session")
+
+            await cache_service.delete_by_key(f"session:{session_id}", redis_client)
+            return {"status": True, "message": "Logged out", "data": {}}
+        except ValueError as e:
+            logger.error(f"Token refresh error: {e}")
+            return {"status": False, "message": str(e), "data": {}}
+        except Exception as e:
+            logger.exception(f"Token refresh error: {e}")
+            return {"status": False, "message": "Invalid token", "data": {}}
 
 
 async def forget_password(
