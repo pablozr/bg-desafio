@@ -27,11 +27,12 @@ async def create_product(
 @router.patch("/{id}", dependencies=[Depends(validate_token_wrapper)])
 async def update_product(
     data: UpdateProductRequest,
+    id: int,
     conn: asyncpg.Connection = Depends(postgresql.get_db),
 ) -> dict:
     return await default_response(
         product_service.update_product,
-        [conn, data.model_dump(exclude_none=True)],
+        [conn, id, data.model_dump(exclude_none=True)],
     )
 
 
