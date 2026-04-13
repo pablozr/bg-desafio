@@ -30,7 +30,9 @@ from services.messaging import messaging_service
 from templates.email import RESET_PASSWORD_EMAIL_TEMPLATE
 
 
-async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: LoginRequestModel) -> dict:
+async def login(
+    conn: asyncpg.Connection, redis_client: redis.Redis, data: LoginRequestModel
+) -> dict:
     try:
         row = await conn.fetchrow(
             """
@@ -53,7 +55,7 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: Login
                 "fullname": row["fullname"],
                 "role": row["role"],
                 "sessionId": session_id,
-                "type": "auth"
+                "type": "auth",
             },
             expires_delta=timedelta(seconds=ACCESS_TOKEN_TTL_SECONDS),
         )
@@ -66,7 +68,7 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: Login
                 "role": row["role"],
                 "sessionId": session_id,
                 "jti": refresh_jti,
-                "type": "refresh"
+                "type": "refresh",
             },
             expires_delta=timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS),
         )
@@ -88,16 +90,18 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: Login
         return {
             "status": True,
             "message": "Login successful",
-            "data": {"user": user, "access_token": token, "refresh_token": refresh_token},
+            "data": {
+                "user": user,
+                "access_token": token,
+                "refresh_token": refresh_token,
+            },
         }
     except Exception as e:
         logger.exception(e)
         return {"status": False, "message": "Internal server error", "data": {}}
 
 
-async def refresh_tokens(
-        refresh_token: str, redis_client: redis.Redis
-) -> dict:
+async def refresh_tokens(refresh_token: str, redis_client: redis.Redis) -> dict:
 
     try:
 
@@ -131,7 +135,7 @@ async def refresh_tokens(
                 "fullname": payload["fullname"],
                 "role": payload["role"],
                 "sessionId": payload["sessionId"],
-                "type": "auth"
+                "type": "auth",
             },
             expires_delta=timedelta(seconds=ACCESS_TOKEN_TTL_SECONDS),
         )
@@ -146,7 +150,7 @@ async def refresh_tokens(
                 "role": payload["role"],
                 "sessionId": payload["sessionId"],
                 "jti": new_jti,
-                "type": "refresh"
+                "type": "refresh",
             },
             expires_delta=timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS),
         )
@@ -160,7 +164,14 @@ async def refresh_tokens(
             redis_client,
         )
 
-        return {"status": True, "message": "Tokens refreshed", "data": {"access_token": new_access_token, "refresh_token": new_refresh_token}}
+        return {
+            "status": True,
+            "message": "Tokens refreshed",
+            "data": {
+                "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
+            },
+        }
     except ValueError as e:
         logger.error(f"Token refresh error: {e}")
         return {"status": False, "message": str(e), "data": {}}

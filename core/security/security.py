@@ -68,7 +68,9 @@ async def verify_token(
         requires_session = expected_type in ("auth", "refresh")
 
         if requires_session:
-            session = await cache_service.get_by_key(f"session:{payload['sessionId']}", redis_client)
+            session = await cache_service.get_by_key(
+                f"session:{payload['sessionId']}", redis_client
+            )
             if not session:
                 raise jwt.InvalidTokenError("Session is invalid")
 
@@ -92,7 +94,11 @@ async def validate_token(
     expected_type: str = "auth",
 ) -> dict:
     try:
-        cookie_key = COOKIE_AUTH_RESET if reset_cookie else COOKIE_AUTH_REFRESH if refresh_cookie else COOKIE_AUTH
+        cookie_key = (
+            COOKIE_AUTH_RESET
+            if reset_cookie
+            else COOKIE_AUTH_REFRESH if refresh_cookie else COOKIE_AUTH
+        )
         token = request.cookies.get(cookie_key)
 
         if not token:
@@ -124,7 +130,9 @@ async def validate_token(
 
 
 async def validate_token_to_update_password(
-    request: Request, conn: asyncpg.Connection = Depends(postgresql.get_db), redis_client: redis.Redis = Depends(redis_cache.get_redis)
+    request: Request,
+    conn: asyncpg.Connection = Depends(postgresql.get_db),
+    redis_client: redis.Redis = Depends(redis_cache.get_redis),
 ) -> dict:
     return await validate_token(
         request,
@@ -138,7 +146,9 @@ async def validate_token_to_update_password(
 
 
 async def validate_token_to_validate_code(
-    request: Request, conn: asyncpg.Connection = Depends(postgresql.get_db), redis_client: redis.Redis = Depends(redis_cache.get_redis)
+    request: Request,
+    conn: asyncpg.Connection = Depends(postgresql.get_db),
+    redis_client: redis.Redis = Depends(redis_cache.get_redis),
 ) -> dict:
     return await validate_token(
         request,
@@ -152,7 +162,9 @@ async def validate_token_to_validate_code(
 
 
 async def validate_token_refresh(
-    request: Request, conn: asyncpg.Connection = Depends(postgresql.get_db), redis_client: redis.Redis = Depends(redis_cache.get_redis)
+    request: Request,
+    conn: asyncpg.Connection = Depends(postgresql.get_db),
+    redis_client: redis.Redis = Depends(redis_cache.get_redis),
 ) -> dict:
     return await validate_token(
         request,
@@ -166,7 +178,9 @@ async def validate_token_refresh(
 
 
 async def validate_token_wrapper(
-    request: Request, conn: asyncpg.Connection = Depends(postgresql.get_db), redis_client: redis.Redis = Depends(redis_cache.get_redis)
+    request: Request,
+    conn: asyncpg.Connection = Depends(postgresql.get_db),
+    redis_client: redis.Redis = Depends(redis_cache.get_redis),
 ) -> dict:
     return await validate_token(request, conn, redis_client)
 

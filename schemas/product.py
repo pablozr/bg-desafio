@@ -25,8 +25,9 @@ class ProductFilters(BaseModel):
     active: Optional[bool] = None
     min_price: Optional[Decimal] = None
     max_price: Optional[Decimal] = None
-    limit: Optional[int] = Field(ge=1, default=20, le=100 )
+    limit: Optional[int] = Field(ge=1, default=20, le=100)
     offset: Optional[int] = Field(ge=0, default=0)
+
 
 class CreateProductResponse(TypedDict):
     id: int

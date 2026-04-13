@@ -25,15 +25,23 @@ async def create_product(conn: asyncpg.Connection, data: ProductData) -> dict:
                 data["active"],
             )
 
-            response = serialize_row({**row}, date_fields=["created_at"], decimal_fields=["price"])
+            response = serialize_row(
+                {**row}, date_fields=["created_at"], decimal_fields=["price"]
+            )
 
-            return {"status": True, "message": "Product created successfully", "data": response}
+            return {
+                "status": True,
+                "message": "Product created successfully",
+                "data": response,
+            }
     except Exception as e:
         logger.error(e)
         return {"status": False, "message": "Internal server error", "data": {}}
 
 
-async def get_products(conn: asyncpg.Connection, filters: Optional[ProductFilters]) -> dict:
+async def get_products(
+    conn: asyncpg.Connection, filters: Optional[ProductFilters]
+) -> dict:
     try:
         query = """
                 SELECT id,
@@ -84,10 +92,20 @@ async def get_products(conn: asyncpg.Connection, filters: Optional[ProductFilter
 
         rows = await conn.fetch(query, *values)
 
-        response = [serialize_row({**row}, date_fields=["created_at", "updated_at"], decimal_fields=["price"]) for row
-                    in rows]
+        response = [
+            serialize_row(
+                {**row},
+                date_fields=["created_at", "updated_at"],
+                decimal_fields=["price"],
+            )
+            for row in rows
+        ]
 
-        return {"status": True, "message": "Products retrieved successfully", "data": response}
+        return {
+            "status": True,
+            "message": "Products retrieved successfully",
+            "data": response,
+        }
     except Exception as e:
         logger.error(e)
         return {"status": False, "message": "Internal server error", "data": []}
@@ -108,12 +126,14 @@ async def get_product_by_id(conn: asyncpg.Connection, product_id: int) -> dict:
             return {"status": False, "message": "Product not found", "data": {}}
 
         response = serialize_row(
-            {**row},
-            date_fields=["created_at", "updated_at"],
-            decimal_fields=["price"]
+            {**row}, date_fields=["created_at", "updated_at"], decimal_fields=["price"]
         )
 
-        return {"status": True, "message": "Product retrieved successfully", "data": response}
+        return {
+            "status": True,
+            "message": "Product retrieved successfully",
+            "data": response,
+        }
     except Exception as e:
         logger.error(e)
         return {"status": False, "message": "Internal server error", "data": {}}
@@ -149,10 +169,14 @@ async def update_product(conn: asyncpg.Connection, product_id: int, data: dict) 
             response = serialize_row(
                 {**row},
                 date_fields=["created_at", "updated_at"],
-                decimal_fields=["price"]
+                decimal_fields=["price"],
             )
 
-            return {"status": True, "message": "Product updated successfully", "data": response}
+            return {
+                "status": True,
+                "message": "Product updated successfully",
+                "data": response,
+            }
     except Exception as e:
         logger.error(e)
         return {"status": False, "message": "Internal server error", "data": {}}
@@ -177,7 +201,7 @@ async def delete_product(conn: asyncpg.Connection, product_id: int) -> dict:
             response = serialize_row(
                 {**row},
                 date_fields=["created_at", "updated_at"],
-                decimal_fields=["price"]
+                decimal_fields=["price"],
             )
 
             return {

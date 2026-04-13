@@ -21,9 +21,7 @@ def _client_ip(request: Request) -> str:
 
 
 def rate_limiter(max_requests: int, window_seconds: int):
-    async def dependency(
-        request: Request, redis_client=Depends(redis_cache.get_redis)
-    ):
+    async def dependency(request: Request, redis_client=Depends(redis_cache.get_redis)):
         ip = _client_ip(request)
         key = f"rate_limit:{request.url.path}:{ip}"
 
@@ -43,7 +41,9 @@ def rate_limiter(max_requests: int, window_seconds: int):
 
 
 LOGIN_RATE_LIMIT_DEPS = [
-    Depends(rate_limiter(RATE_LIMIT_LOGIN_MAX_REQUESTS, RATE_LIMIT_LOGIN_WINDOW_SECONDS))
+    Depends(
+        rate_limiter(RATE_LIMIT_LOGIN_MAX_REQUESTS, RATE_LIMIT_LOGIN_WINDOW_SECONDS)
+    )
 ]
 FORGET_PASSWORD_RATE_LIMIT_DEPS = [
     Depends(

@@ -22,7 +22,6 @@ from core.security.rate_limit import (
 )
 from schemas.auth import (
     ForgetPasswordRequestModel,
-    LoginGoogleRequestModel,
     LoginRequestModel,
     UpdatePasswordRequest,
     ValidateCodeRequest,
@@ -77,18 +76,23 @@ async def login(
 @router.post("/refresh", dependencies=[Depends(security.validate_token_refresh)])
 async def refresh_token(
     request: Request,
-    redis_client = Depends(redis_cache.get_redis),
+    redis_client=Depends(redis_cache.get_redis),
 ):
 
     response = await auth_service.refresh_tokens(request.state.token, redis_client)
 
     if not response["status"]:
-        return JSONResponse(status_code=400, content={"detail": response["message"], "data": {}})
+        return JSONResponse(
+            status_code=400, content={"detail": response["message"], "data": {}}
+        )
 
     token = response["data"].pop("access_token")
     refresh_token = response["data"].pop("refresh_token")
 
-    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
+    resp = JSONResponse(
+        status_code=200,
+        content={"message": response["message"], "data": response["data"]},
+    )
 
     resp.set_cookie(
         key=COOKIE_AUTH,
