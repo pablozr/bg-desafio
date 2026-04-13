@@ -25,7 +25,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: [ "python", "-m", "workers.email_worker" ]
+    command: [ "python", "-m", "workers.smtp.email_worker" ]
     env_file:
       - .env
     depends_on:
