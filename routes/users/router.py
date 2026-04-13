@@ -27,7 +27,7 @@ async def update_me(
     return await default_response(user_service.update_me, [conn, user["userId"], data])
 
 
-@router.post("/")
+@router.post("")
 async def create_user(
     data: UserCreateRequest,
     conn: asyncpg.Connection = Depends(postgresql.get_db),

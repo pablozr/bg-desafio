@@ -1,12 +1,12 @@
-from typing import Optional
+
 
 import asyncpg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from core.postgresql.postgresql import postgresql
 from core.security.security import validate_token_wrapper
 from functions.utils.utils import default_response
-from schemas.product import CreateProductRequest, ProductFilters
+from schemas.product import CreateProductRequest, ProductFilters, UpdateProductRequest
 from services.product import product_service
 
 router = APIRouter()
@@ -24,9 +24,20 @@ async def create_product(
     )
 
 
+@router.patch("/{id}", dependencies=[Depends(validate_token_wrapper)])
+async def update_product(
+    data: UpdateProductRequest,
+    conn: asyncpg.Connection = Depends(postgresql.get_db),
+) -> dict:
+    return await default_response(
+        product_service.update_product,
+        [conn, data.model_dump(exclude_none=True)],
+    )
+
+
 @router.get("", dependencies=[Depends(validate_token_wrapper)])
 async def get_products(
-    filters: Optional[ProductFilters] = Depends(),
+    filters: ProductFilters = Query(),
     conn: asyncpg.Connection = Depends(postgresql.get_db),
 ) -> dict:
     return await default_response(product_service.get_products, [conn, filters])
